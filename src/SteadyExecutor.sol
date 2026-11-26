@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.29;
 
-// Steady: DCA that steps aside when the trend breaks.
+// Steady: DCA that buys more when the market is afraid.
 //
 // SteadyExecutor is the callback contract on Base. It holds the user's USDC
 // and cbBTC and only does what SteadyBrain (on Reactive) tells it to:
-// release the weekly budget, buy cbBTC with the idle budget, or sell
-// everything back to USDC. Every swap is guarded against the Chainlink
+// release the weekly budget (times the fear-dial multiplier), buy cbBTC with
+// the idle budget, or sell everything back to USDC (SHIELD mode). A monthly
+// cap bounds how much the dial can spend in a long crash. Every swap is guarded against the Chainlink
 // BTC/USD price on Base, read directly here, so no manual price ceiling.
 // A failed or stale-oracle swap is skipped, never reverted, so callbacks
 // always settle and nothing strands.
@@ -38,6 +39,7 @@ contract SteadyExecutor is AbstractCallback {
     event Sold(uint256 indexed round_, uint256 btcIn_, uint256 usdcOut_, uint256 price_);
     event BudgetReleased(uint256 indexed round_, uint256 amount_, uint256 budget_);
     event Skipped(uint256 indexed round_, uint8 action_, uint8 reason_);
+    event Explained(uint256 indexed round_, uint8 action_, uint256 multX100_, int256 distanceBps_);
 
     IUniswapV3Pool public constant POOL = IUniswapV3Pool(0xfBB6Eed8e7aa03B138556eeDaF5D271A5E1e43ef);
     IAggregatorV3 public constant ORACLE = IAggregatorV3(0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F);
@@ -58,6 +60,7 @@ contract SteadyExecutor is AbstractCallback {
     uint8 public constant NOTHING = 3;
     uint8 public constant STALE_ORACLE = 4;
     uint8 public constant SWAP_FAILED = 5;
+    uint8 public constant CAPPED = 6;
 
     address public immutable owner;
     uint256 public weekly;          // USDC (6 decimals) released per week
@@ -65,6 +68,9 @@ contract SteadyExecutor is AbstractCallback {
     uint256 public slippageBps = 100;
     bool public paused;
     uint256 public lastRound;
+    uint256 public monthlyCap;      // USDC (6 decimals) the buys may spend per 30 days; 0 = no cap
+    uint256 public windowStart;
+    uint256 public spentInWindow;
 
     // `payable` so the contract can be funded at deployment.
     // callbackProxy_: the callback proxy on this chain. callbackSender_: SteadyBrain (immutable).
@@ -82,7 +88,7 @@ contract SteadyExecutor is AbstractCallback {
     }
 
     /// @notice Entry point for SteadyBrain's callbacks. The network replaces `rc` with the brain's address.
-    function act(address rc, uint256 round, uint8 action)
+    function act(address rc, uint256 round, uint8 action, uint256 multX100, int256 distanceBps)
         external
         onlyServiceProvider
         onlyCallbackSender(rc)
@@ -91,10 +97,12 @@ contract SteadyExecutor is AbstractCallback {
         if (round <= lastRound) { _skip(round, action, DUPLICATE); return; }
         lastRound = round;
         if (paused) { _skip(round, action, PAUSED); return; }
+        emit Explained(round, action, multX100, distanceBps);
 
         if (action == WEEK_ONLY || action == WEEK_AND_BUY) {
-            budget += weekly;
-            emit BudgetReleased(round, weekly, budget);
+            uint256 release = weekly * multX100 / 100;
+            budget += release;
+            emit BudgetReleased(round, release, budget);
         }
         if (action == WEEK_AND_BUY || action == BUY) {
             _buy(round, action);
@@ -106,6 +114,15 @@ contract SteadyExecutor is AbstractCallback {
     function _buy(uint256 round_, uint8 action_) internal {
         uint256 usdc = IERC20(USDC).balanceOf(address(this));
         uint256 spend = budget < usdc ? budget : usdc;
+        if (monthlyCap != 0) {
+            if (block.timestamp >= windowStart + 30 days) {
+                windowStart = block.timestamp;
+                spentInWindow = 0;
+            }
+            uint256 room = monthlyCap > spentInWindow ? monthlyCap - spentInWindow : 0;
+            if (spend > room) spend = room;
+            if (spend == 0) { _skip(round_, action_, CAPPED); return; }
+        }
         if (spend == 0) { _skip(round_, action_, NOTHING); return; }
         (bool fresh, uint256 p) = _oracle();
         if (!fresh) { _skip(round_, action_, STALE_ORACLE); return; }
@@ -113,6 +130,9 @@ contract SteadyExecutor is AbstractCallback {
         uint256 minOut = (spend * 1e10 / p) * (10000 - slippageBps) / 10000;
         try this.swap(true, spend, minOut) returns (uint256 out) {
             budget -= spend;
+            spentInWindow += spend;
+            uint256 left = IERC20(USDC).balanceOf(address(this));
+            if (budget > left) budget = left;        // the dial cannot promise money that is not there
             emit Bought(round_, spend, out, spend * 1e10 / out);
         } catch {
             _skip(round_, action_, SWAP_FAILED);
@@ -170,6 +190,10 @@ contract SteadyExecutor is AbstractCallback {
 
     function setWeekly(uint256 weekly_) external onlyOwner {
         weekly = weekly_;
+    }
+
+    function setMonthlyCap(uint256 cap_) external onlyOwner {
+        monthlyCap = cap_;
     }
 
     function setSlippageBps(uint256 bps_) external onlyOwner {

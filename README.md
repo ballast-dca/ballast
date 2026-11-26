@@ -1,25 +1,75 @@
 # Steady
 
-**DCA that steps aside when the trend breaks.**
+**DCA that buys more when the market is afraid.**
 
-Steady is a weekly dollar-cost-averaging strategy for BTC that runs entirely on-chain, with no server, no bot and no keys online. A reactive contract on [Reactive Network](https://reactive.network) watches the Chainlink BTC/USD feed on Base, computes trend indicators on-chain, and tells an executor on Base when to buy, when to hold cash, and when to get out.
+Steady is a weekly dollar-cost-averaging plan for BTC that runs entirely on-chain, with no server, no bot and no keys online. A reactive contract on [Reactive Network](https://reactive.network) watches the Chainlink BTC/USD feed on Base, computes the 200-day average and trend indicators on-chain, and tells an executor on Base how much to buy each week: more when BTC is cheap relative to its long-term average, less when it is overheated.
+
+> Steady turns "be greedy when others are fearful" into a contract that cannot flinch.
 
 Built for the Reactive Omni Buildathon, track **Set It and Forget It**.
 
 ---
 
-## Why
+## The edge, and what it costs
 
-Plain weekly DCA is simple and it works over long horizons, but it keeps buying all the way down a bear market. In our backtest, a weekly BTC DCA started in January 2024 was down 20 percent by late November 2026 (ETH: down 35 percent).
+Plain DCA buys the same amount every week. Steady's **fear dial** scales the weekly buy by how far BTC's daily close sits from its 200-day average:
 
-The fix most traders reach for is a trend filter: buy while the trend is up, step aside to cash when it breaks. It is easy to describe and hard to run yourself, because a filter only helps if something watches the market every day and acts without hesitation. That is exactly what a reactive contract does.
+| BTC vs its 200-day average | Weekly buy |
+|---|---|
+| at or above it, up to 30% above | 1x |
+| 10% below | 1.5x |
+| 20% below | 2x |
+| 40% or more below | 3x (cap) |
+| 50% above | 0.8x |
+| 80% or more above | 0.5x (floor) |
 
-| Out of sample, Jan 2024 to Nov 2026, weekly $ in | BTC return | BTC max drawdown | ETH return | ETH max drawdown |
+These figures use the exact rule the contract implements. We tested it against plain weekly DCA over **71 rolling two-year windows** (monthly starts, January 2019 to November 2024, Coinbase daily candles, 0.5% fee):
+
+| | BTC plain | BTC fear dial | ETH plain | ETH fear dial |
 |---|---|---|---|---|
-| Plain weekly DCA | -20% | 55% | -35% | 67% |
-| **Steady's rule: trend-gated DCA, exit on trend break** | **+6%** | **45%** | **+19%** | **46%** |
+| Median return on money invested | 75% | 75% | 30% | **37%** |
+| Worst two-year window | -49% | **-40%** | -40% | **-34%** |
+| Chance of a loss after two years | 31% | **24%** | 37% | **28%** |
+| Cheaper average purchase price | | **7.3%** | | **10.5%** |
+| Beat plain DCA (return) | | **64 of 71** | | **65 of 71** |
+| Ended with more dollars of profit | | **53 of 71** | | **56 of 71** |
+| Money put in, vs plain | 1.00x | 1.24x | 1.00x | 1.31x |
 
-Backtest on Coinbase daily candles, 0.5 percent fee per side, signals on the close and fills at the next open, standard parameters with no tuning. The same rule held up at 0.9 percent fees (+2 / +16 percent). Code in [`research/`](research/). Past results are evidence, not a promise; see [Limits](#limits).
+A worked example. $50 a week from the November 2021 top, two years later:
+
+| | Plain | Fear dial |
+|---|---|---|
+| Invested | $5,250 | $8,313 |
+| BTC bought | 0.196 | 0.334 |
+| Average cost | $26,825 | $24,904 |
+| Return | +37% | +47% |
+
+In a calm bull market (October 2023 to March 2024) the dial barely acts: +82% against +80% for plain, on slightly less money.
+
+**What it costs you:**
+- **Spare cash in crashes.** The dial spends up to 3x the normal amount in deep drawdowns, about 25 to 30% more over a two-year window. A monthly cap bounds it.
+- **Bigger dollar swings.** More money goes in near the bottom, so dollar drawdowns are larger even when percentage drawdowns are smaller.
+- **It assumes recovery.** Buying more of something that never recovers loses more. That is what **Shield** mode is for.
+- **History is not a promise.** 2019 to 2026 only. Code in [`research/`](research/).
+
+We also tested a drawdown-from-high dial, an RSI dial and value averaging. The drawdown dial spent far more for the same result, the RSI dial barely beat plain DCA, and value averaging had the best return per dollar but less total profit in bull markets. The fear dial was the best all-rounder.
+
+---
+
+## Two modes
+
+**ACCUMULATE (default).** Buy every week, sized by the fear dial. Never sells.
+
+**SHIELD.** For people who care more about not losing than about maximum gain. The weekly budget accumulates in USDC and is only invested while the trend is up (daily close above EMA200 and EMA20 above EMA50). When the trend breaks, or price hits a disaster stop at the last buy price minus 3x ATR, it exits to USDC.
+
+| Two-year windows | BTC plain DCA | BTC Shield (trend rule, tested without the stop) |
+|---|---|---|
+| Median return | 75% | 41% |
+| Worst window | -49% | **-6%** |
+| Chance of a loss | 31% | **14%** |
+| Average max drawdown | 56% | **41%** |
+
+Shield gives up roughly half the median return for a much better worst case. The owner switches modes with one call.
 
 ---
 
@@ -30,47 +80,41 @@ flowchart LR
     subgraph Base
       F[Chainlink BTC/USD<br/>AnswerUpdated]
       X[SteadyExecutor<br/>USDC + cbBTC]
+      M[MarketMood<br/>public read]
       P[(Uniswap v3<br/>cbBTC/USDC 0.05%)]
     end
     subgraph Reactive Network
       C[Cron10000<br/>system event]
-      B[SteadyBrain<br/>EMA 20/50/200 + ATR<br/>on-chain]
+      B[SteadyBrain<br/>EMA 20/50/200, ATR,<br/>fear dial, on-chain]
     end
-    F -- price events --> B
+    F -- ~48 price events a day --> B
     C -- ticks --> B
     X -- Bought / Sold events --> B
-    B -- callback: act(round, action) --> X
+    B -- weekly act: action x multiplier --> X
+    B -- daily mood --> M
     X <-- swaps --> P
 ```
 
 **SteadyBrain** (reactive contract, Reactive mainnet) subscribes to three event streams:
 
-1. **Chainlink BTC/USD `AnswerUpdated` on Base**, about 48 updates a day. The brain builds daily high, low and close from these updates and keeps EMA20, EMA50, EMA200 and a Wilder ATR14 on-chain. The regime is **UP** when the daily close is above EMA200 and EMA20 is above EMA50.
-2. **Reactive's Cron10000** system event. Once a week the brain releases that week's budget, and buys with it if the regime is UP.
-3. **SteadyExecutor's own `Bought` and `Sold` events on Base.** The brain's view of the position follows what actually happened on-chain, not what it hoped would happen.
+1. **Chainlink BTC/USD `AnswerUpdated` on Base.** From these updates the brain builds daily high, low and close and keeps EMA20, EMA50, EMA200 and a Wilder ATR14 on-chain.
+2. **Reactive's Cron10000** system event. Once a week the brain sends the buy, with the fear-dial multiplier attached.
+3. **SteadyExecutor's `Bought` and `Sold` events on Base.** The brain's view of the position follows what actually happened on-chain.
 
-It decides one of five actions and delivers it to Base as a callback:
+**SteadyExecutor** (callback contract, Base) holds USDC and cbBTC and only executes. Every swap is checked against the Chainlink price read directly on Base, with a 1% slippage limit and a 2-hour staleness limit. Each action emits `Explained(round, action, multiplier, distanceBps)`, so every decision can be read back in plain terms: *"bought 2x because BTC closed 20% below its 200-day average."*
 
-| Action | When |
-|---|---|
-| `WEEK_ONLY` | weekly tick while the regime is DOWN: budget accumulates in USDC |
-| `WEEK_AND_BUY` | weekly tick while the regime is UP: invest all idle budget |
-| `BUY` | the regime just turned UP: invest the cash that waited |
-| `SELL_TREND` | the regime just turned DOWN: exit to USDC |
-| `SELL_STOP` | price fell below the disaster stop (last buy price minus 3 x ATR) |
-
-**SteadyExecutor** (callback contract, Base) holds the USDC and cbBTC and only executes. Every swap is checked against the Chainlink price read directly on Base, with a 1 percent slippage limit, so there is no manually maintained price ceiling.
+**MarketMood** (Base) is a public good. Once a day the brain writes BTC's distance from its 200-day average, the trend state and the coming week's multiplier. Any contract can read it, for example to tighten lending limits when `inFear(2000)` is true.
 
 ---
 
 ## Safety
 
 - **Only the brain can act**, and only through Reactive's callback proxy (`onlyServiceProvider` plus `onlyCallbackSender`).
-- **Idempotent.** Every action carries a round number; repeats are ignored. Reactive can deliver the same event twice.
-- **Skip, never revert.** A stale oracle (older than 2 hours), a failed swap or a slippage breach records a `Skipped` event and the callback settles. Reactive bills failed callbacks and does not retry them, so reverting would only cost money.
-- **Exits retry.** If an exit is skipped, no `Sold` event comes back, and the brain re-issues the exit at the next daily close until it lands.
-- **The stop blocks re-entry** until the regime resets, so a crash does not trigger buy-sell churn.
-- **Owner controls** on the executor: pause, withdraw any token, change the weekly amount or slippage. On the brain: pause and resume the paid subscriptions.
+- **Idempotent.** Every action carries a round number; repeats are ignored.
+- **Skip, never revert.** A stale oracle, a failed swap, a slippage breach or the monthly cap records a `Skipped` event and the callback settles. Reactive bills failed callbacks and does not retry them.
+- **Exits retry.** In Shield mode, if an exit is skipped, the brain re-issues it at each daily close until the `Sold` event comes back.
+- **The stop blocks re-entry** until the trend resets.
+- **Owner controls.** Executor: pause, withdraw any token, weekly amount, monthly cap, slippage. Brain: mode, pause and resume subscriptions.
 
 ---
 
@@ -78,11 +122,11 @@ It decides one of five actions and delivers it to Base as a callback:
 
 | | Per | Notes |
 |---|---|---|
-| Price reactions | ~0.012 to 0.016 REACT each | about 48 a day |
-| Cron ticks | ~0.014 REACT each | about 11 a day, billed whether or not anything happens |
-| Total on Reactive | ~0.9 REACT a day | live mainnet fee parameters, Reactive MCP `estimate_cost` |
-| Base callbacks | fractions of a cent of ETH | only on actions: weekly, and on regime changes |
-| Swap cost | ~0.05% pool fee | forked mainnet round trip measured at about 0.10% |
+| Price reactions | ~0.012 to 0.016 REACT | about 48 a day |
+| Cron ticks | ~0.014 REACT | about 11 a day, billed whether or not anything happens |
+| Total on Reactive | ~0.9 REACT a day | live mainnet fee parameters (Reactive MCP `estimate_cost`) |
+| Base callbacks | fractions of a cent of ETH | one weekly action, one daily mood update |
+| Swap cost | ~0.05% pool fee | a forked-mainnet round trip measured about 0.10% |
 
 ---
 
@@ -91,11 +135,12 @@ It decides one of five actions and delivers it to Base as a callback:
 ```
 src/SteadyBrain.sol       reactive contract (Reactive Network)
 src/SteadyExecutor.sol    callback contract (Base)
-test/Steady.t.sol         13 tests: brain logic with a mocked system contract,
-                          executor against a fork of Base mainnet
+src/MarketMood.sol        public mood read (Base)
+test/Steady.t.sol         20 tests: brain logic against a mocked system contract,
+                          executor against a fork of Base mainnet, MarketMood
 script/seed.py            seed EMAs and ATR from completed daily candles
-script/deploy.sh          deploy, link, seed and fund both contracts
-research/                 the backtest behind the rule
+script/deploy.sh          deploy, link, seed and fund all three contracts
+research/                 the backtests behind the rules
 ```
 
 ```bash
@@ -113,6 +158,7 @@ The fork tests use `https://mainnet.base.org` by default; set `BASE_RPC` to use 
 |---|---|---|
 | SteadyBrain | Reactive mainnet (1597) | _to be filled after deployment_ |
 | SteadyExecutor | Base (8453) | _to be filled after deployment_ |
+| MarketMood | Base (8453) | _to be filled after deployment_ |
 
 Full-loop transactions (origin event, reactive transaction, callback): _to be filled after deployment_.
 
@@ -120,12 +166,17 @@ Full-loop transactions (origin event, reactive transaction, callback): _to be fi
 
 ## Limits
 
-- **A trend filter lags.** It gives back the start of every rally and pays for false switches in choppy markets. In the 2019 to 2023 backtest, plain DCA beat the gated version on ETH.
-- **Small sample.** The out-of-sample period is under three years with fewer than ten regime switches per asset.
-- **The 3 x ATR stop was chosen after seeing the data.** Treat it as a hypothesis the live run tests, not a proven edge.
-- **On-chain ATR is approximate.** Daily high and low come from Chainlink updates (deviation and heartbeat), not every trade.
 - **Seeded indicators.** EMA200 needs 200 days of history, so the brain starts from values computed off-chain from Coinbase candles, then advances on-chain from Chainlink.
-- **Cron bills every tick.** A weekly strategy pays for about 77 ticks to act once. Cheap at current prices; budget it.
+- **On-chain ATR is approximate.** Daily high and low come from Chainlink updates (deviation and heartbeat), not every trade.
+- **Cron bills every tick.** A weekly plan pays for about 77 ticks to act once. Cheap at current prices, but budget it.
+- **The Shield stop (3x ATR) was chosen after seeing the data.** Treat it as a hypothesis the live run tests.
+- **Backtests use Coinbase BTC-USD; Steady trades cbBTC on Base** against a Chainlink price. Small tracking differences are expected.
+
+## Next
+
+- **Value averaging mode**: top up to a target value path. Best return per dollar in our tests, less total profit in bull runs.
+- **More assets**: ETH via a Chainlink ETH/USD feed, using the same brain logic.
+- **Gift plans**: a recipient address, so a weekly savings plan can run for someone else.
 
 ---
 

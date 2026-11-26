@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Steady: SteadyBrain on Reactive mainnet, SteadyExecutor on Base, link and seed.
+# Deploy Steady: SteadyBrain on Reactive mainnet, SteadyExecutor and MarketMood on Base, link and seed.
 #   ACCOUNT=steady WEEKLY_USDC=10 bash script/deploy.sh
 # Funding (USDC into the executor) is a separate, explicit step; see README.
 set -euo pipefail
@@ -32,17 +32,22 @@ EXEC=$(forge create src/SteadyExecutor.sol:SteadyExecutor --broadcast --rpc-url 
   "${SIGN[@]}" --value "$EXEC_FUND" --constructor-args $PROXY "$BRAIN" $WEEKLY | addr)
 echo "SteadyExecutor (Base): $EXEC"
 
-cast send "$BRAIN" "setExecutor(address)" "$EXEC" --rpc-url "$REACTIVE_RPC" "${SIGN[@]}" > /dev/null
+MOOD=$(forge create src/MarketMood.sol:MarketMood --broadcast --rpc-url "$BASE_RPC"   "${SIGN[@]}" --value "$EXEC_FUND" --constructor-args $PROXY "$BRAIN" | addr)
+echo "MarketMood (Base): $MOOD"
+
+cast send "$BRAIN" "setTargets(address,address)" "$EXEC" "$MOOD" --rpc-url "$REACTIVE_RPC" "${SIGN[@]}" > /dev/null
 SEED=$(python script/seed.py | tee /dev/stderr | grep SEED_ARGS | cut -d= -f2)
 # shellcheck disable=SC2086
 cast send "$BRAIN" "seed(uint256,uint256,uint256,uint256,uint256,uint256)" $SEED \
   --rpc-url "$REACTIVE_RPC" "${SIGN[@]}" > /dev/null
 cast send $SYSTEM "depositTo(address)" "$BRAIN" --value "$BRAIN_RESERVE" --rpc-url "$REACTIVE_RPC" "${SIGN[@]}" > /dev/null
 cast send $PROXY "depositTo(address)" "$EXEC" --value 0.00005ether --rpc-url "$BASE_RPC" "${SIGN[@]}" > /dev/null
+cast send $PROXY "depositTo(address)" "$MOOD" --value 0.00005ether --rpc-url "$BASE_RPC" "${SIGN[@]}" > /dev/null
 
 cat > deployments.env <<EOF
 BRAIN=$BRAIN
 EXECUTOR=$EXEC
+MOOD=$MOOD
 EOF
 echo "linked, seeded, funded; saved deployments.env"
 echo "Next: send USDC to the executor: cast send 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 'transfer(address,uint256)' $EXEC <amount 6dp> ..."
