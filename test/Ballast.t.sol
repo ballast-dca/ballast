@@ -5,8 +5,8 @@ import { Test } from "forge-std/Test.sol";
 import { IReactive } from "@reactive/src/interfaces/IReactive.sol";
 import { IPayable } from "@reactive/src/interfaces/IPayable.sol";
 import { ISystemContract } from "@reactive/src/interfaces/ISystemContract.sol";
-import { SteadyBrain } from "../src/SteadyBrain.sol";
-import { SteadyExecutor, IERC20 } from "../src/SteadyExecutor.sol";
+import { BallastBrain } from "../src/BallastBrain.sol";
+import { BallastExecutor, IERC20 } from "../src/BallastExecutor.sol";
 import { MarketMood } from "../src/MarketMood.sol";
 
 /// Stands in for the Reactive system contract in unit tests.
@@ -37,7 +37,7 @@ contract MockSystem {
     }
 }
 
-contract SteadyBrainTest is Test {
+contract BallastBrainTest is Test {
     address constant SYSTEM = 0x8888888888888888888888888888888888888888;
     address constant CRON = 0x0000000000000000000000000000000000fffFfF;
     uint256 constant CRON10000 = 0xd214e1d84db704ed42d37f538ea9bf71e44ba28bc1cc088b2f5deca654677a56;
@@ -49,13 +49,13 @@ contract SteadyBrainTest is Test {
     uint256 constant D0 = 20784;
 
     MockSystem system;
-    SteadyBrain brain;
+    BallastBrain brain;
 
     function setUp() public {
         vm.etch(SYSTEM, address(new MockSystem()).code);
         system = MockSystem(SYSTEM);
         vm.warp(D0 * DAY + 100);
-        brain = new SteadyBrain(8453, FEED, 7 days);
+        brain = new BallastBrain(8453, FEED, 7 days);
         brain.setTargets(EXEC, MOOD);
         // Downtrend seed, like late Nov 2026: close 60k under EMA200 75k, EMA20 < EMA50, ATR 2k.
         brain.seed(D0, 60_000e8, 61_000e8, 66_000e8, 75_000e8, 2_000e8);
@@ -232,18 +232,18 @@ interface IAggregator {
 }
 
 /// Runs against a fork of Base mainnet: real Uniswap v3 cbBTC/USDC pool and real Chainlink feed.
-contract SteadyExecutorForkTest is Test {
+contract BallastExecutorForkTest is Test {
     address constant ORACLE = 0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F;
     address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant CBBTC = 0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf;
     address constant PROXY = address(0x9A0);
     address constant BRAIN = address(0xB4A1);
 
-    SteadyExecutor ex;
+    BallastExecutor ex;
 
     function setUp() public {
         vm.createSelectFork(vm.envOr("BASE_RPC", string("https://mainnet.base.org")));
-        ex = new SteadyExecutor(IPayable(payable(PROXY)), BRAIN, 10e6);
+        ex = new BallastExecutor(IPayable(payable(PROXY)), BRAIN, 10e6);
         deal(USDC, address(ex), 50e6);
     }
 

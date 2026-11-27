@@ -3,7 +3,7 @@ pragma solidity ^0.8.29;
 
 // MarketMood: a public, on-chain read of BTC's long-term trend on Base.
 //
-// Written once a day by SteadyBrain on Reactive Network from the Chainlink
+// Written once a day by BallastBrain on Reactive Network from the Chainlink
 // BTC/USD feed. Any contract can read it, for example to tighten risk limits
 // when the market is in fear, or to pause a strategy in a downtrend:
 //
@@ -25,7 +25,7 @@ contract MarketMood is AbstractCallback {
         uint256 atr;            // 14-day average true range
         int256 distanceBps;     // (close - ema200) / ema200, in basis points
         bool up;                // close > EMA200 and EMA20 > EMA50
-        uint256 multiplierX100; // Steady's fear dial for the coming week
+        uint256 multiplierX100; // Ballast's fear dial for the coming week
         uint256 updatedAt;
     }
 
@@ -40,7 +40,7 @@ contract MarketMood is AbstractCallback {
     {
     }
 
-    /// @notice Entry point for SteadyBrain's daily callback.
+    /// @notice Entry point for BallastBrain's daily callback.
     function setMood(
         address rc,
         uint256 day_,

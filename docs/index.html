@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ballast: live</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --ink: #14181f; --muted: #5b6573; --line: #e3e7ec;
+    --accent: #2756fc; --good: #0f9d6e; --warn: #c47a12; --bad: #c2413a; --track: #e9edf2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b0e13; --card: #131821; --ink: #e8edf3; --muted: #93a0b0; --line: #232b37;
+      --accent: #6b8cff; --good: #2fbf8f; --warn: #e0a94a; --bad: #e06666; --track: #1d2430; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 18px 64px; }
+  h1 { margin: 0; font-size: 30px; letter-spacing: -0.02em; }
+  .tag { color: var(--muted); margin: 4px 0 24px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .k { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .v { font-size: 26px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .s { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .dial { margin-top: 14px; }
+  .bar { position: relative; height: 10px; border-radius: 6px; background: var(--track); }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--accent); }
+  .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; margin-top: 6px; }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  .row { display: grid; grid-template-columns: 58px 1fr auto; gap: 12px; align-items: baseline;
+    padding: 12px 0; border-top: 1px solid var(--line); }
+  .row:first-child { border-top: 0; }
+  .round { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .why { font-size: 14px; }
+  .amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+  .up { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good); }
+  .down { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  a { color: var(--accent); }
+  .links { font-size: 13px; color: var(--muted); line-height: 1.9; }
+  .links code { font-size: 12px; }
+  #status { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ballast</h1>
+  <p class="tag">DCA that adds weight when the market storms. Live on Reactive mainnet and Base, read straight from the chain.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="k">BTC vs its 200-day average</div>
+      <div class="v" id="dist">...</div>
+      <div class="s" id="closeline">loading</div>
+    </div>
+    <div class="card">
+      <div class="k">This week's buy</div>
+      <div class="v" id="mult">...</div>
+      <div class="dial"><div class="bar"><div class="fill" id="fill" style="width:0"></div></div>
+        <div class="ticks"><span>0.5x</span><span>1x</span><span>2x</span><span>3x</span></div></div>
+    </div>
+    <div class="card">
+      <div class="k">Trend</div>
+      <div class="v" id="trend">...</div>
+      <div class="s" id="emas"></div>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top:14px">
+    <div class="card"><div class="k">Invested</div><div class="v" id="spent">...</div><div class="s" id="weeks"></div></div>
+    <div class="card"><div class="k">cbBTC bought</div><div class="v" id="btc">...</div><div class="s" id="avg"></div></div>
+    <div class="card"><div class="k">Value now</div><div class="v" id="value">...</div><div class="s" id="pnl"></div></div>
+  </div>
+
+  <h2>Every decision, explained</h2>
+  <div class="card" id="decisions"><span id="status">Reading Base...</span></div>
+
+  <h2>Contracts</h2>
+  <div class="links">
+    BallastBrain (Reactive mainnet): <a href="https://reactscan.net/address/0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205"><code>0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205</code></a><br>
+    BallastExecutor (Base): <a href="https://basescan.org/address/0x617296f5E7174093a6EA7E4C68fe73cef2658d7c"><code>0x617296f5E7174093a6EA7E4C68fe73cef2658d7c</code></a><br>
+    MarketMood (Base): <a href="https://basescan.org/address/0x6F9d5d4ce09755DF50281baf66043C069Aeb4964#readContract"><code>0x6F9d5d4ce09755DF50281baf66043C069Aeb4964</code></a><br>
+    Source and backtests: <a href="https://github.com/steady-reactive/steady">github.com/steady-reactive/steady</a>
+  </div>
+</main>
+
+<script>
+const RPCS = ["https://base-rpc.publicnode.com", "https://mainnet.base.org"];
+const EXECUTOR = "0x617296f5E7174093a6EA7E4C68fe73cef2658d7c";
+const MOOD = "0x6F9d5d4ce09755DF50281baf66043C069Aeb4964";
+const FROM_BLOCK = 62773000;       // just before deployment
+const CHUNK = 9000;
+const T = {
+  explained: "0xc77b02df2d13c342e16a1f890a151ae84497b79c4633bb42efce84f023609ca7",
+  bought: "0x47abb63d521dd2e26fcdd6dd304df0a109af421045f9cf9d53a6d1b7f5c16376",
+  sold: "0x945e981382e9652a616199a2950a325ee6c8884ebe9677fd306a951e6ba08299",
+  skipped: "0x918dc9d8b183a2ef15e89248f773d5319d4411c80cb7e0af59e4b4013b32b39d",
+};
+const ACTIONS = {1: "Released the week's budget, stayed in cash", 2: "Bought", 3: "Bought (trend turned up)",
+  4: "Sold to USDC (trend broke)", 5: "Sold to USDC (stop hit)"};
+const SKIPS = {1: "duplicate", 2: "paused", 3: "nothing to do", 4: "oracle stale", 5: "swap guard", 6: "monthly cap"};
+
+async function rpc(method, params) {
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const url of RPCS) {
+      try {
+        const r = await fetch(url, {method: "POST", headers: {"content-type": "application/json"},
+          body: JSON.stringify({jsonrpc: "2.0", id: 1, method, params})});
+        const j = await r.json();
+        if (!j.error) return j.result;
+        last = new Error(j.error.message);
+      } catch (e) { last = e; }
+    }
+    await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1)));
+  }
+  throw last;
+}
+const word = (hex, i) => hex.slice(2 + i * 64, 2 + (i + 1) * 64);
+const u = (w) => BigInt("0x" + w);
+const s = (w) => { const v = BigInt("0x" + w); return v >= (1n << 255n) ? v - (1n << 256n) : v; };
+const usd = (x) => "$" + x.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const pct = (bps) => (Number(bps) / 100).toFixed(1) + "%";
+
+async function logs() {
+  const head = parseInt(await rpc("eth_blockNumber", []), 16);
+  const out = [];
+  for (let from = FROM_BLOCK; from <= head; from += CHUNK) {
+    const to = Math.min(from + CHUNK - 1, head);
+    out.push(...await rpc("eth_getLogs", [{address: EXECUTOR,
+      fromBlock: "0x" + from.toString(16), toBlock: "0x" + to.toString(16)}]));
+  }
+  return out;
+}
+
+async function main() {
+  const m = await rpc("eth_call", [{to: MOOD, data: "0x52bfe789"}, "latest"]);
+  const close = Number(u(word(m, 1))) / 1e8, ema20 = Number(u(word(m, 2))) / 1e8;
+  const ema50 = Number(u(word(m, 3))) / 1e8, ema200 = Number(u(word(m, 4))) / 1e8;
+  const dist = s(word(m, 6)), up = u(word(m, 7)) === 1n, mult = Number(u(word(m, 8))) / 100;
+  if (ema200 > 0) {
+    document.getElementById("dist").textContent = (dist > 0 ? "+" : "") + pct(dist);
+    document.getElementById("closeline").textContent =
+      `Daily close ${usd(close)} vs 200-day average ${usd(ema200)}`;
+    document.getElementById("mult").textContent = mult.toFixed(2) + "x";
+    document.getElementById("fill").style.width = Math.min(100, Math.max(0, (mult - 0.5) / 2.5 * 100)) + "%";
+    document.getElementById("trend").innerHTML =
+      `<span class="pill ${up ? "up" : "down"}">${up ? "UP" : "DOWN"}</span>`;
+    document.getElementById("emas").textContent = `EMA20 ${usd(ema20)}, EMA50 ${usd(ema50)}`;
+  } else {
+    document.getElementById("closeline").textContent = "Waiting for the first daily mood update.";
+  }
+
+  const all = await logs();
+  const rounds = {};
+  let spent = 0, btc = 0, weeks = 0;
+  for (const l of all) {
+    const t0 = l.topics[0], r = Number(BigInt(l.topics[1] || "0x0"));
+    rounds[r] = rounds[r] || {round: r, block: parseInt(l.blockNumber, 16), tx: l.transactionHash};
+    if (t0 === T.explained) {
+      rounds[r].action = Number(u(word(l.data, 0))); rounds[r].mult = Number(u(word(l.data, 1))) / 100;
+      rounds[r].dist = s(word(l.data, 2));
+      if (rounds[r].action <= 2) weeks++;
+    } else if (t0 === T.bought) {
+      const inUsd = Number(u(word(l.data, 0))) / 1e6, outBtc = Number(u(word(l.data, 1))) / 1e8;
+      rounds[r].bought = {usd: inUsd, btc: outBtc}; spent += inUsd; btc += outBtc;
+    } else if (t0 === T.sold) {
+      rounds[r].sold = {btc: Number(u(word(l.data, 0))) / 1e8, usd: Number(u(word(l.data, 1))) / 1e6};
+      btc -= rounds[r].sold.btc;
+    } else if (t0 === T.skipped) {
+      rounds[r].skip = Number(u(word(l.data, 1)));
+    }
+  }
+  document.getElementById("spent").textContent = usd(spent);
+  document.getElementById("weeks").textContent = `${weeks} weekly decision${weeks === 1 ? "" : "s"}`;
+  document.getElementById("btc").textContent = btc.toFixed(8);
+  document.getElementById("avg").textContent = btc > 0 ? `average cost ${usd(spent / btc)}` : "";
+  if (btc > 0 && close > 0) {
+    const value = btc * close;
+    document.getElementById("value").textContent = usd(value);
+    document.getElementById("pnl").textContent = `${value >= spent ? "+" : ""}${((value / spent - 1) * 100).toFixed(1)}% at the last daily close`;
+  }
+
+  const list = Object.values(rounds).sort((a, b) => b.round - a.round);
+  const box = document.getElementById("decisions");
+  if (!list.length) { box.innerHTML = '<span id="status">No decisions yet: the first weekly tick is on its way.</span>'; return; }
+  box.innerHTML = list.map((d) => {
+    const why = d.dist !== undefined
+      ? ` because BTC closed ${pct(d.dist < 0n ? -d.dist : d.dist)} ${d.dist < 0n ? "below" : "above"} its 200-day average`
+      : "";
+    let what = (ACTIONS[d.action] || "Action") + (d.mult ? ` at ${d.mult.toFixed(2)}x` : "") + why + ".";
+    if (d.skip) what += ` Skipped: ${SKIPS[d.skip] || "guard"}.`;
+    const amt = d.bought ? `${usd(d.bought.usd)} &rarr; ${d.bought.btc.toFixed(8)} cbBTC`
+      : d.sold ? `${d.sold.btc.toFixed(8)} cbBTC &rarr; ${usd(d.sold.usd)}` : "";
+    return `<div class="row"><span class="round">#${d.round}</span>
+      <span class="why"><a href="https://basescan.org/tx/${d.tx}">${what}</a></span><span class="amt">${amt}</span></div>`;
+  }).join("");
+}
+main().catch((e) => { document.getElementById("status").textContent = "Could not read the chain: " + e.message; });
+</script>
+</body>
+</html>

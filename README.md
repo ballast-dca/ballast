@@ -1,10 +1,14 @@
-# Steady
+# Ballast
 
-**DCA that buys more when the market is afraid.**
+**DCA that adds weight when the market storms.**
 
-Steady is a weekly dollar-cost-averaging plan for BTC that runs entirely on-chain, with no server, no bot and no keys online. A reactive contract on [Reactive Network](https://reactive.network) watches the Chainlink BTC/USD feed on Base, computes the 200-day average and trend indicators on-chain, and tells an executor on Base how much to buy each week: more when BTC is cheap relative to its long-term average, less when it is overheated.
+Ships take on ballast to stay steady in rough seas. Ballast does the same for a BTC savings plan: the worse the market, the more it buys.
 
-> Steady turns "be greedy when others are fearful" into a contract that cannot flinch.
+**Live dashboard:** https://steady-reactive.github.io/steady/
+
+Ballast is a weekly dollar-cost-averaging plan for BTC that runs entirely on-chain, with no server, no bot and no keys online. A reactive contract on [Reactive Network](https://reactive.network) watches the Chainlink BTC/USD feed on Base, computes the 200-day average and trend indicators on-chain, and tells an executor on Base how much to buy each week: more when BTC is cheap relative to its long-term average, less when it is overheated.
+
+> Ballast turns "be greedy when others are fearful" into a contract that cannot flinch.
 
 Built for the Reactive Omni Buildathon, track **Set It and Forget It**.
 
@@ -12,7 +16,7 @@ Built for the Reactive Omni Buildathon, track **Set It and Forget It**.
 
 ## The edge, and what it costs
 
-Plain DCA buys the same amount every week. Steady's **fear dial** scales the weekly buy by how far BTC's daily close sits from its 200-day average:
+Plain DCA buys the same amount every week. Ballast's **fear dial** scales the weekly buy by how far BTC's daily close sits from its 200-day average:
 
 | BTC vs its 200-day average | Weekly buy |
 |---|---|
@@ -79,13 +83,13 @@ Shield gives up roughly half the median return for a much better worst case. The
 flowchart LR
     subgraph Base
       F[Chainlink BTC/USD<br/>AnswerUpdated]
-      X[SteadyExecutor<br/>USDC + cbBTC]
+      X[BallastExecutor<br/>USDC + cbBTC]
       M[MarketMood<br/>public read]
       P[(Uniswap v3<br/>cbBTC/USDC 0.05%)]
     end
     subgraph Reactive Network
       C[Cron10000<br/>system event]
-      B[SteadyBrain<br/>EMA 20/50/200, ATR,<br/>fear dial, on-chain]
+      B[BallastBrain<br/>EMA 20/50/200, ATR,<br/>fear dial, on-chain]
     end
     F -- ~48 price events a day --> B
     C -- ticks --> B
@@ -95,13 +99,13 @@ flowchart LR
     X <-- swaps --> P
 ```
 
-**SteadyBrain** (reactive contract, Reactive mainnet) subscribes to three event streams:
+**BallastBrain** (reactive contract, Reactive mainnet) subscribes to three event streams:
 
 1. **Chainlink BTC/USD `AnswerUpdated` on Base.** From these updates the brain builds daily high, low and close and keeps EMA20, EMA50, EMA200 and a Wilder ATR14 on-chain.
 2. **Reactive's Cron10000** system event. Once a week the brain sends the buy, with the fear-dial multiplier attached.
-3. **SteadyExecutor's `Bought` and `Sold` events on Base.** The brain's view of the position follows what actually happened on-chain.
+3. **BallastExecutor's `Bought` and `Sold` events on Base.** The brain's view of the position follows what actually happened on-chain.
 
-**SteadyExecutor** (callback contract, Base) holds USDC and cbBTC and only executes. Every swap is checked against the Chainlink price read directly on Base, with a 1% slippage limit and a 2-hour staleness limit. Each action emits `Explained(round, action, multiplier, distanceBps)`, so every decision can be read back in plain terms: *"bought 2x because BTC closed 20% below its 200-day average."*
+**BallastExecutor** (callback contract, Base) holds USDC and cbBTC and only executes. Every swap is checked against the Chainlink price read directly on Base, with a 1% slippage limit and a 2-hour staleness limit. Each action emits `Explained(round, action, multiplier, distanceBps)`, so every decision can be read back in plain terms: *"bought 2x because BTC closed 20% below its 200-day average."*
 
 **MarketMood** (Base) is a public good. Once a day the brain writes BTC's distance from its 200-day average, the trend state and the coming week's multiplier. Any contract can read it, for example to tighten lending limits when `inFear(2000)` is true.
 
@@ -133,11 +137,16 @@ flowchart LR
 ## Repository
 
 ```
-src/SteadyBrain.sol       reactive contract (Reactive Network)
-src/SteadyExecutor.sol    callback contract (Base)
+src/BallastBrain.sol       reactive contract (Reactive Network)
+src/BallastExecutor.sol    callback contract (Base)
 src/MarketMood.sol        public mood read (Base)
-test/Steady.t.sol         20 tests: brain logic against a mocked system contract,
+test/Ballast.t.sol         unit tests: brain logic against a mocked system contract,
                           executor against a fork of Base mainnet, MarketMood
+test/BallastFuzz.t.sol     property tests: the dial stays in [0.5x, 3x] and never buys
+                          less at a lower price, ACCUMULATE never sells on random
+                          price paths, rounds only increase, the budget never
+                          exceeds funds (fork), MarketMood never goes back in time
+docs/index.html            live dashboard (GitHub Pages), reads Base directly
 script/seed.py            seed EMAs and ATR from completed daily candles
 script/deploy.sh          deploy, link, seed and fund all three contracts
 research/                 the backtests behind the rules
@@ -154,11 +163,13 @@ The fork tests use `https://mainnet.base.org` by default; set `BASE_RPC` to use 
 
 ## Deployments
 
+All three are verified on Sourcify (exact match).
+
 | Contract | Chain | Address |
 |---|---|---|
-| SteadyBrain | Reactive mainnet (1597) | [`0x6A72B29fb883c68dAaf4b22E576F2664b47401a3`](https://reactscan.net/address/0x6A72B29fb883c68dAaf4b22E576F2664b47401a3) |
-| SteadyExecutor | Base (8453) | [`0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205`](https://basescan.org/address/0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205) |
-| MarketMood | Base (8453) | [`0xB1C3581Ecf3AB3EBac874967992F32506083f3D8`](https://basescan.org/address/0xB1C3581Ecf3AB3EBac874967992F32506083f3D8) |
+| BallastBrain | Reactive mainnet (1597) | [`0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205`](https://reactscan.net/address/0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205) |
+| BallastExecutor | Base (8453) | [`0x617296f5E7174093a6EA7E4C68fe73cef2658d7c`](https://basescan.org/address/0x617296f5E7174093a6EA7E4C68fe73cef2658d7c) |
+| MarketMood | Base (8453) | [`0x6F9d5d4ce09755DF50281baf66043C069Aeb4964`](https://basescan.org/address/0x6F9d5d4ce09755DF50281baf66043C069Aeb4964) |
 
 Full-loop transactions (origin event, reactive transaction, callback): _to be filled after deployment_.
 
@@ -170,7 +181,7 @@ Full-loop transactions (origin event, reactive transaction, callback): _to be fi
 - **On-chain ATR is approximate.** Daily high and low come from Chainlink updates (deviation and heartbeat), not every trade.
 - **Cron bills every tick.** A weekly plan pays for about 77 ticks to act once. Cheap at current prices, but budget it.
 - **The Shield stop (3x ATR) was chosen after seeing the data.** Treat it as a hypothesis the live run tests.
-- **Backtests use Coinbase BTC-USD; Steady trades cbBTC on Base** against a Chainlink price. Small tracking differences are expected.
+- **Backtests use Coinbase BTC-USD; Ballast trades cbBTC on Base** against a Chainlink price. Small tracking differences are expected.
 
 ## Next
 
@@ -181,6 +192,8 @@ Full-loop transactions (origin event, reactive transaction, callback): _to be fi
 ---
 
 ## Tools used
+
+27 tests in total (7 fuzz properties at 256 runs each). Fuzzing found two real bugs before the final deployment: a dust-sized buy could revert instead of skipping, and an unfunded week could later turn into a catch-up buy. Both are fixed and covered.
 
 Foundry, `reactive-lib-omni`, and Reactive's own MCP server for planning subscriptions, generating templates, static checks (`check_rc_source`), cost estimates and post-deployment health checks.
 

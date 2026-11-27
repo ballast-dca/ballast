@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Steady: SteadyBrain on Reactive mainnet, SteadyExecutor and MarketMood on Base, link and seed.
+# Deploy Ballast: BallastBrain on Reactive mainnet, BallastExecutor and MarketMood on Base, link and seed.
 #   ACCOUNT=steady WEEKLY_USDC=10 bash script/deploy.sh
 # Funding (USDC into the executor) is a separate, explicit step; see README.
 set -euo pipefail
@@ -24,13 +24,13 @@ addr() { grep -oE 'Deployed to: 0x[0-9a-fA-F]{40}' | awk '{print $3}'; }
 
 forge build
 
-BRAIN=$(forge create src/SteadyBrain.sol:SteadyBrain --broadcast --rpc-url "$REACTIVE_RPC" --chain-id 1597 \
+BRAIN=$(forge create src/BallastBrain.sol:BallastBrain --broadcast --rpc-url "$REACTIVE_RPC" --chain-id 1597 \
   "${SIGN[@]}" --value "$BRAIN_FUND" --constructor-args $BASE_ID $FEED $INTERVAL | addr)
-echo "SteadyBrain (Reactive mainnet): $BRAIN"
+echo "BallastBrain (Reactive mainnet): $BRAIN"
 
-EXEC=$(forge create src/SteadyExecutor.sol:SteadyExecutor --broadcast --rpc-url "$BASE_RPC" \
+EXEC=$(forge create src/BallastExecutor.sol:BallastExecutor --broadcast --rpc-url "$BASE_RPC" \
   "${SIGN[@]}" --value "$EXEC_FUND" --constructor-args $PROXY "$BRAIN" $WEEKLY | addr)
-echo "SteadyExecutor (Base): $EXEC"
+echo "BallastExecutor (Base): $EXEC"
 
 MOOD=$(forge create src/MarketMood.sol:MarketMood --broadcast --rpc-url "$BASE_RPC"   "${SIGN[@]}" --value "$EXEC_FUND" --constructor-args $PROXY "$BRAIN" | addr)
 echo "MarketMood (Base): $MOOD"

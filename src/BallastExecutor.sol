@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.29;
 
-// Steady: DCA that buys more when the market is afraid.
+// Ballast: DCA that adds weight when the market storms.
 //
-// SteadyExecutor is the callback contract on Base. It holds the user's USDC
-// and cbBTC and only does what SteadyBrain (on Reactive) tells it to:
+// BallastExecutor is the callback contract on Base. It holds the user's USDC
+// and cbBTC and only does what BallastBrain (on Reactive) tells it to:
 // release the weekly budget (times the fear-dial multiplier), buy cbBTC with
 // the idle budget, or sell everything back to USDC (SHIELD mode). A monthly
 // cap bounds how much the dial can spend in a long crash. Every swap is guarded against the Chainlink
@@ -29,7 +29,7 @@ interface IAggregatorV3 {
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80);
 }
 
-contract SteadyExecutor is AbstractCallback {
+contract BallastExecutor is AbstractCallback {
     error NotOwner(address caller_);
     error NotPool(address caller_);
     error NotSelf(address caller_);
@@ -48,6 +48,7 @@ contract SteadyExecutor is AbstractCallback {
     uint160 private constant MIN_SQRT_PLUS_ONE = 4295128740;
     uint160 private constant MAX_SQRT_MINUS_ONE = 1461446703485210103287273052203988822378723970341;
     uint256 public constant MAX_ORACLE_AGE = 2 hours;
+    uint256 public constant MIN_SPEND = 10000;   // 0.01 USDC: below this a swap can round to zero
 
     uint8 public constant WEEK_ONLY = 1;
     uint8 public constant WEEK_AND_BUY = 2;
@@ -73,7 +74,7 @@ contract SteadyExecutor is AbstractCallback {
     uint256 public spentInWindow;
 
     // `payable` so the contract can be funded at deployment.
-    // callbackProxy_: the callback proxy on this chain. callbackSender_: SteadyBrain (immutable).
+    // callbackProxy_: the callback proxy on this chain. callbackSender_: BallastBrain (immutable).
     constructor(IPayable callbackProxy_, address callbackSender_, uint256 weekly_)
         payable
         AbstractCallback(callbackProxy_, callbackSender_)
@@ -87,7 +88,7 @@ contract SteadyExecutor is AbstractCallback {
         _;
     }
 
-    /// @notice Entry point for SteadyBrain's callbacks. The network replaces `rc` with the brain's address.
+    /// @notice Entry point for BallastBrain's callbacks. The network replaces `rc` with the brain's address.
     function act(address rc, uint256 round, uint8 action, uint256 multX100, int256 distanceBps)
         external
         onlyServiceProvider
@@ -102,6 +103,9 @@ contract SteadyExecutor is AbstractCallback {
         if (action == WEEK_ONLY || action == WEEK_AND_BUY) {
             uint256 release = weekly * multX100 / 100;
             budget += release;
+            // Never promise money that is not there: an empty week must not become a catch-up buy later.
+            uint256 held = IERC20(USDC).balanceOf(address(this));
+            if (budget > held) budget = held;
             emit BudgetReleased(round, release, budget);
         }
         if (action == WEEK_AND_BUY || action == BUY) {
@@ -123,7 +127,7 @@ contract SteadyExecutor is AbstractCallback {
             if (spend > room) spend = room;
             if (spend == 0) { _skip(round_, action_, CAPPED); return; }
         }
-        if (spend == 0) { _skip(round_, action_, NOTHING); return; }
+        if (spend < MIN_SPEND) { _skip(round_, action_, NOTHING); return; }
         (bool fresh, uint256 p) = _oracle();
         if (!fresh) { _skip(round_, action_, STALE_ORACLE); return; }
         // cbBTC 8 decimals, USDC 6, oracle 8: btc = usdc * 1e10 / price.
@@ -166,7 +170,7 @@ contract SteadyExecutor is AbstractCallback {
         );
         // forge-lint: disable-next-line(unsafe-typecast)
         out = uint256(-(usdcToBtc_ ? a1 : a0));
-        if (out < minOut_) revert TooLittleOut(out, minOut_);
+        if (out == 0 || out < minOut_) revert TooLittleOut(out, minOut_);
     }
 
     /// @notice Uniswap v3 swap callback: pay what the pool is owed.

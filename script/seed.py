@@ -1,8 +1,8 @@
-"""Compute SteadyBrain.seed() arguments from Coinbase BTC-USD daily candles.
+"""Compute BallastBrain.seed() arguments from Coinbase BTC-USD daily candles.
 
 EMA20/50/200 (seeded from the first close, then standard EMA) and Wilder
 ATR14 over completed UTC days only, in 8-decimal feed units, matching what
-SteadyBrain computes on-chain from the Chainlink feed afterwards.
+BallastBrain computes on-chain from the Chainlink feed afterwards.
 
     python script/seed.py
 """
@@ -18,7 +18,7 @@ def candles(days=420):
     out, t = {}, now - days * 86400
     while t < now:
         t2 = min(t + 300 * 86400, now)
-        req = urllib.request.Request(API.format(s=t, e=t2), headers={"User-Agent": "steady-seed"})
+        req = urllib.request.Request(API.format(s=t, e=t2), headers={"User-Agent": "ballast-seed"})
         for ts, lo, hi, op, cl, vol in json.load(urllib.request.urlopen(req, timeout=20)):
             out[ts] = (ts, lo, hi, op, cl)
         t = t2

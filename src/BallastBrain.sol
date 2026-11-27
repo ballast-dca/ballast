@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.29;
 
-// Steady: DCA that buys more when the market is afraid.
+// Ballast: DCA that adds weight when the market storms.
 //
-// SteadyBrain is the reactive contract (Reactive Network). It listens to three
-// event streams and decides; SteadyExecutor and MarketMood on Base only act.
+// BallastBrain is the reactive contract (Reactive Network). It listens to three
+// event streams and decides; BallastExecutor and MarketMood on Base only act.
 //
 //   1. Chainlink BTC/USD AnswerUpdated on Base -> daily high/low/close, then
 //      EMA20/50/200 and ATR14 computed on-chain, and a daily Market Mood
@@ -14,7 +14,7 @@ pragma solidity ^0.8.29;
 //      the further price sits below its 200-day average, down to 0.5x when
 //      price is far above it. In SHIELD mode the week's budget is released but
 //      only invested while the trend is up.
-//   3. SteadyExecutor's Bought / Sold events on Base -> the brain's view of the
+//   3. BallastExecutor's Bought / Sold events on Base -> the brain's view of the
 //      position follows what actually happened on-chain.
 //
 // SHIELD mode also exits to USDC when the trend breaks (close < EMA200 or
@@ -24,7 +24,7 @@ import { ISystemContract } from "@reactive/src/interfaces/ISystemContract.sol";
 import { IReactive } from "@reactive/src/interfaces/IReactive.sol";
 import { AbstractReactive } from "@reactive/src/base/AbstractReactive.sol";
 
-contract SteadyBrain is AbstractReactive {
+contract BallastBrain is AbstractReactive {
     error NotOwner(address caller_);
 
     event Decision(uint256 indexed round_, uint8 action_, uint256 multX100_, int256 distanceBps_, uint256 price_);
@@ -36,7 +36,7 @@ contract SteadyBrain is AbstractReactive {
     uint8 public constant ACCUMULATE = 1;     // fear dial, always buying
     uint8 public constant SHIELD = 2;         // trend-gated, exits on trend break or stop
 
-    // Actions understood by SteadyExecutor.act().
+    // Actions understood by BallastExecutor.act().
     uint8 public constant WEEK_ONLY = 1;      // release the weekly budget, stay in cash
     uint8 public constant WEEK_AND_BUY = 2;   // release the weekly budget (x multiplier) and buy with all idle budget
     uint8 public constant BUY = 3;            // buy with all idle budget (trend just turned UP, SHIELD)
@@ -98,7 +98,7 @@ contract SteadyBrain is AbstractReactive {
         _;
     }
 
-    /// @notice Set once SteadyExecutor and MarketMood are deployed; subscribes to the executor's events.
+    /// @notice Set once BallastExecutor and MarketMood are deployed; subscribes to the executor's events.
     function setTargets(address executor_, address mood_) external onlyOwner {
         executor = executor_;
         mood = mood_;

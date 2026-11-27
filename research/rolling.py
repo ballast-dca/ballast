@@ -1,7 +1,7 @@
-"""Reproduce Steady's README tables: 71 rolling two-year windows of weekly DCA.
+"""Reproduce Ballast's README tables: 71 rolling two-year windows of weekly DCA.
 
-Compares plain weekly DCA, Steady's fear dial (the exact rule in
-SteadyBrain.multiplierX100) and the Shield trend rule, on Coinbase daily
+Compares plain weekly DCA, Ballast's fear dial (the exact rule in
+BallastBrain.multiplierX100) and the Shield trend rule, on Coinbase daily
 candles with a 0.5% fee per buy.
 
     python research/rolling.py
@@ -15,7 +15,7 @@ from signals import ema
 
 
 def fear_dial(close, ema200):
-    """SteadyBrain.multiplierX100() / 100."""
+    """BallastBrain.multiplierX100() / 100."""
     if close < ema200:
         return (100 + min(200, int((ema200 - close) * 500 / ema200))) / 100
     pct = int(close * 100 / ema200)
