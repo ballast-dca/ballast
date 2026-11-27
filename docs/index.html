@@ -42,6 +42,23 @@
   .links { font-size: 13px; color: var(--muted); line-height: 1.9; }
   .links code { font-size: 12px; }
   #status { color: var(--muted); font-size: 13px; }
+  .bar2 { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+  button { font: inherit; font-size: 14px; border-radius: 8px; border: 1px solid var(--line); padding: 7px 14px;
+    background: var(--card); color: var(--ink); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input, select { font: inherit; font-size: 14px; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); min-width: 0; }
+  .set { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(140px, 1.1fr) auto; gap: 10px;
+    align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .set:first-of-type { border-top: 0; }
+  .set .now { font-size: 13px; color: var(--muted); }
+  .set .ctl { display: flex; gap: 8px; }
+  .set .ctl input, .set .ctl select { width: 100%; }
+  .chain { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 0 7px; margin-left: 6px; }
+  .note { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  #txlog { font-size: 13px; margin-top: 10px; overflow-wrap: anywhere; }
+  @media (max-width: 560px) { .set { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -72,6 +89,52 @@
     <div class="card"><div class="k">Invested</div><div class="v" id="spent">...</div><div class="s" id="weeks"></div></div>
     <div class="card"><div class="k">cbBTC bought</div><div class="v" id="btc">...</div><div class="s" id="avg"></div></div>
     <div class="card"><div class="k">Value now</div><div class="v" id="value">...</div><div class="s" id="pnl"></div></div>
+  </div>
+
+  <h2>Plan settings</h2>
+  <div class="card">
+    <div class="bar2">
+      <span id="who" class="s">Read-only. Connect the owner's wallet to change settings.</span>
+      <button class="primary" id="connect">Connect wallet</button>
+    </div>
+    <div style="margin-top:8px">
+      <div class="set"><div><b>Cadence</b><span class="chain">Reactive</span><div class="now" id="n-interval">...</div></div>
+        <div class="ctl"><select id="i-interval">
+          <option value="86400">Daily</option><option value="259200">Every 3 days</option>
+          <option value="604800">Weekly</option><option value="1209600">Every 2 weeks</option>
+          <option value="2592000">Every 30 days</option></select></div>
+        <button data-act="interval" disabled>Save</button></div>
+      <div class="set"><div><b>Amount per period</b><span class="chain">Base</span><div class="now" id="n-weekly">...</div></div>
+        <div class="ctl"><input id="i-weekly" type="number" min="0" step="0.01" placeholder="USDC"></div>
+        <button data-act="weekly" disabled>Save</button></div>
+      <div class="set"><div><b>Monthly cap</b><span class="chain">Base</span><div class="now" id="n-cap">...</div></div>
+        <div class="ctl"><input id="i-cap" type="number" min="0" step="1" placeholder="USDC per 30 days, 0 = none"></div>
+        <button data-act="cap" disabled>Save</button></div>
+      <div class="set"><div><b>Slippage guard</b><span class="chain">Base</span><div class="now" id="n-slip">...</div></div>
+        <div class="ctl"><input id="i-slip" type="number" min="0.05" max="5" step="0.05" placeholder="% vs Chainlink"></div>
+        <button data-act="slip" disabled>Save</button></div>
+      <div class="set"><div><b>Mode</b><span class="chain">Reactive</span><div class="now" id="n-mode">...</div></div>
+        <div class="ctl"><select id="i-mode"><option value="1">Accumulate: fear dial, always buying</option>
+          <option value="2">Shield: buy in uptrends, exit to USDC</option></select></div>
+        <button data-act="mode" disabled>Save</button></div>
+      <div class="set"><div><b>Trading</b><span class="chain">Base</span><div class="now" id="n-paused">...</div></div>
+        <div class="ctl"><span class="s">Paused: decisions are recorded, nothing is bought or sold.</span></div>
+        <button data-act="pause" disabled>...</button></div>
+      <div class="set"><div><b>Add USDC</b><span class="chain">Base</span><div class="now" id="n-usdc">...</div></div>
+        <div class="ctl"><input id="i-usdc" type="number" min="0" step="0.01" placeholder="USDC from your wallet"></div>
+        <button data-act="deposit" disabled>Deposit</button></div>
+      <div class="set"><div><b>Fee reserves</b><span class="chain">Reactive</span><div class="now" id="n-react">...</div></div>
+        <div class="ctl"><input id="i-react" type="number" min="0" step="1" placeholder="REACT to add"></div>
+        <button data-act="react" disabled>Top up</button></div>
+      <div class="set"><div><b>Withdraw</b><span class="chain">Base</span><div class="now" id="n-btc">...</div></div>
+        <div class="ctl"><select id="i-wtoken"><option value="usdc">USDC</option><option value="btc">cbBTC</option></select>
+          <input id="i-wamt" type="number" min="0" step="any" placeholder="amount"></div>
+        <button data-act="withdraw" disabled>Withdraw</button></div>
+    </div>
+    <div class="note">Each change is one transaction from the owner's wallet; the page switches between Base and
+      Reactive Network for you (Reactive is added to the wallet on first use). Funds stay in the plan's own contract:
+      only the owner can change settings or withdraw.</div>
+    <div id="txlog"></div>
   </div>
 
   <h2>Every decision, explained</h2>
@@ -199,6 +262,167 @@ async function main() {
   }).join("");
 }
 main().catch((e) => { document.getElementById("status").textContent = "Could not read the chain: " + e.message; });
+
+// ---------- plan settings (owner control panel) ----------
+const BRAIN = "0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205";
+const SYSTEM = "0x8888888888888888888888888888888888888888";
+const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const CBBTC = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
+const REACT_PER_DAY = 3;   // measured burn: every Chainlink update and cron tick is billed
+const CHAINS = {
+  base: {id: 8453, hex: "0x2105", rpcs: ["https://mainnet.base.org", "https://base-rpc.publicnode.com"],
+    scan: "https://basescan.org/tx/"},
+  reactive: {id: 1597, hex: "0x63d", rpcs: ["https://mainnet-rpc.rnk.dev/"], scan: "https://reactscan.net/tx/",
+    add: {chainId: "0x63d", chainName: "Reactive Mainnet", rpcUrls: ["https://mainnet-rpc.rnk.dev/"],
+      nativeCurrency: {name: "REACT", symbol: "REACT", decimals: 18}, blockExplorerUrls: ["https://reactscan.net"]}},
+};
+const SEL = {interval: "0x947a36fb", mode: "0x295a5212", lastWeek: "0x634cae0e", reserves: "0xd66bd524",
+  debt: "0x9b6c56ec", owner: "0x8da5cb5b", weekly: "0x26cfc17b", monthlyCap: "0xa828cd4e",
+  slippageBps: "0x578c71d9", paused: "0x5c975abb", budget: "0xed01bf29", balanceOf: "0x70a08231",
+  setInterval: "0x22a90082", setMode: "0x21175b4a", depositTo: "0xb760faf9", setWeekly: "0xcea6cea7",
+  setMonthlyCap: "0x00bc86e1", setSlippageBps: "0x1a3ce4e6", setPaused: "0x16c38b3c",
+  withdraw: "0xd9caed12", transfer: "0xa9059cbb"};
+
+const $ = (id) => document.getElementById(id);
+const pad = (v) => BigInt(v).toString(16).padStart(64, "0");
+const addr = (a) => a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+const toUnits = (x, d) => {             // decimal string -> integer units, no float rounding
+  const [i, f = ""] = String(x).trim().split(".");
+  return BigInt(i || "0") * 10n ** BigInt(d) + BigInt((f + "0".repeat(d)).slice(0, d) || "0");
+};
+let account = null, owner = null, cfg = {};
+
+async function call(chain, to, data) {
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    for (const url of CHAINS[chain].rpcs) {
+      try {
+        const r = await fetch(url, {method: "POST", headers: {"content-type": "application/json"},
+          body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "eth_call", params: [{to, data}, "latest"]})});
+        const j = await r.json();
+        if (!j.error) return BigInt(j.result);
+        last = new Error(j.error.message);
+      } catch (e) { last = e; }
+    }
+    await new Promise((ok) => setTimeout(ok, 700 * (attempt + 1)));
+  }
+  throw last;
+}
+
+async function inOrder(calls) {        // the Reactive RPC drops bursts of parallel requests
+  const out = [];
+  for (const c of calls) out.push(await c());
+  return out;
+}
+
+function every(sec) {
+  const d = Number(sec) / 86400;
+  return d >= 1 ? `every ${d % 1 ? d.toFixed(1) : d} day${d === 1 ? "" : "s"}` : `every ${(Number(sec) / 3600).toFixed(1)} hours`;
+}
+
+async function readSettings() {
+  const [[interval, mode, lastWeek, reserves, debt], [own, weekly, cap, slip, paused, budget, usdc, btc]] =
+    await Promise.all([
+      inOrder([() => call("reactive", BRAIN, SEL.interval), () => call("reactive", BRAIN, SEL.mode),
+        () => call("reactive", BRAIN, SEL.lastWeek), () => call("reactive", SYSTEM, SEL.reserves + addr(BRAIN)),
+        () => call("reactive", SYSTEM, SEL.debt + addr(BRAIN))]),
+      Promise.all([call("base", EXECUTOR, SEL.owner), call("base", EXECUTOR, SEL.weekly),
+        call("base", EXECUTOR, SEL.monthlyCap), call("base", EXECUTOR, SEL.slippageBps),
+        call("base", EXECUTOR, SEL.paused), call("base", EXECUTOR, SEL.budget),
+        call("base", USDC, SEL.balanceOf + addr(EXECUTOR)), call("base", CBBTC, SEL.balanceOf + addr(EXECUTOR))]),
+    ]);
+  owner = "0x" + own.toString(16).padStart(40, "0");
+  cfg = {interval, mode: Number(mode), paused: paused === 1n};
+  const next = Number(lastWeek + interval) * 1000;
+  $("n-interval").textContent = `${every(interval)}, next buy ${new Date(next).toLocaleString(undefined,
+    {month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"})}`;
+  $("i-interval").value = [...$("i-interval").options].some((o) => o.value === String(interval)) ? String(interval) : "604800";
+  $("n-weekly").textContent = `${usd(Number(weekly) / 1e6)} base, times the fear dial`;
+  $("n-cap").textContent = cap === 0n ? "no cap" : `${usd(Number(cap) / 1e6)} per 30 days`;
+  $("n-slip").textContent = `${(Number(slip) / 100).toFixed(2)}% vs the Chainlink price`;
+  $("n-mode").textContent = cfg.mode === 2 ? "Shield" : "Accumulate";
+  $("i-mode").value = String(cfg.mode || 1);
+  $("n-paused").textContent = cfg.paused ? "paused" : "active";
+  document.querySelector('[data-act="pause"]').textContent = cfg.paused ? "Resume" : "Pause";
+  $("n-usdc").textContent = `plan holds ${usd(Number(usdc) / 1e6)}, ${usd(Number(budget) / 1e6)} released to buy`;
+  const r = Number(reserves) / 1e18;
+  $("n-react").textContent = debt > 0n ? `in debt: ${(Number(debt) / 1e18).toFixed(2)} REACT, top up now`
+    : `${r.toFixed(1)} REACT, about ${Math.floor(r / REACT_PER_DAY)} days`;
+  $("n-btc").textContent = `plan holds ${(Number(btc) / 1e8).toFixed(8)} cbBTC`;
+  updateAccess();
+}
+
+function updateAccess() {
+  const isOwner = account && owner && account.toLowerCase() === owner.toLowerCase();
+  document.querySelectorAll("[data-act]").forEach((b) => { b.disabled = !isOwner; });
+  $("who").textContent = !account ? "Read-only. Connect the owner's wallet to change settings."
+    : isOwner ? `Connected as the owner, ${account.slice(0, 6)}...${account.slice(-4)}.`
+    : `Connected as ${account.slice(0, 6)}...${account.slice(-4)}: not this plan's owner, so settings are read-only.`;
+  $("connect").textContent = account ? "Connected" : "Connect wallet";
+}
+
+async function useChain(chain) {
+  const c = CHAINS[chain];
+  try {
+    await ethereum.request({method: "wallet_switchEthereumChain", params: [{chainId: c.hex}]});
+  } catch (e) {
+    if (e.code === 4902 && c.add) await ethereum.request({method: "wallet_addEthereumChain", params: [c.add]});
+    else throw e;
+  }
+}
+
+async function send(chain, to, data, value = 0n, label) {
+  const log = $("txlog");
+  try {
+    log.textContent = `${label}: switching to ${chain === "base" ? "Base" : "Reactive Network"}...`;
+    await useChain(chain);
+    log.textContent = `${label}: confirm in your wallet...`;
+    const hash = await ethereum.request({method: "eth_sendTransaction",
+      params: [{from: account, to, data, value: "0x" + value.toString(16)}]});
+    log.innerHTML = `${label}: sent, waiting for the block... <a href="${CHAINS[chain].scan}${hash}">${hash.slice(0, 12)}...</a>`;
+    for (let i = 0; i < 60; i++) {
+      await new Promise((ok) => setTimeout(ok, 2000));
+      const r = await fetch(CHAINS[chain].rpcs[0], {method: "POST", headers: {"content-type": "application/json"},
+        body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "eth_getTransactionReceipt", params: [hash]})});
+      const rec = (await r.json()).result;
+      if (rec) {
+        log.innerHTML = `${label}: ${rec.status === "0x1" ? "done" : "failed"}. <a href="${CHAINS[chain].scan}${hash}">View transaction</a>`;
+        return readSettings();
+      }
+    }
+  } catch (e) {
+    log.textContent = `${label}: ${e.message || e}`;
+  }
+}
+
+const ACTS = {
+  interval: () => send("reactive", BRAIN, SEL.setInterval + pad($("i-interval").value), 0n, "Cadence"),
+  weekly: () => send("base", EXECUTOR, SEL.setWeekly + pad(toUnits($("i-weekly").value, 6)), 0n, "Amount per period"),
+  cap: () => send("base", EXECUTOR, SEL.setMonthlyCap + pad(toUnits($("i-cap").value || "0", 6)), 0n, "Monthly cap"),
+  slip: () => send("base", EXECUTOR, SEL.setSlippageBps + pad(toUnits($("i-slip").value, 2)), 0n, "Slippage guard"),
+  mode: () => send("reactive", BRAIN, SEL.setMode + pad($("i-mode").value), 0n, "Mode"),
+  pause: () => send("base", EXECUTOR, SEL.setPaused + pad(cfg.paused ? 0 : 1), 0n, cfg.paused ? "Resume" : "Pause"),
+  deposit: () => send("base", USDC, SEL.transfer + addr(EXECUTOR) + pad(toUnits($("i-usdc").value, 6)), 0n, "Deposit USDC"),
+  react: () => send("reactive", SYSTEM, SEL.depositTo + addr(BRAIN), toUnits($("i-react").value, 18), "Fee reserves"),
+  withdraw: () => {
+    const btc = $("i-wtoken").value === "btc";
+    return send("base", EXECUTOR, SEL.withdraw + addr(btc ? CBBTC : USDC) + addr(account)
+      + pad(toUnits($("i-wamt").value, btc ? 8 : 6)), 0n, "Withdraw");
+  },
+};
+document.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+  const needs = {weekly: "i-weekly", slip: "i-slip", deposit: "i-usdc", react: "i-react", withdraw: "i-wamt"}[b.dataset.act];
+  if (needs && !(Number($(needs).value) > 0)) { $("txlog").textContent = "Enter an amount first."; return; }
+  ACTS[b.dataset.act]();
+}));
+
+$("connect").addEventListener("click", async () => {
+  if (!window.ethereum) { $("who").textContent = "No browser wallet found: install MetaMask or Coinbase Wallet."; return; }
+  [account] = await ethereum.request({method: "eth_requestAccounts"});
+  ethereum.on?.("accountsChanged", (a) => { account = a[0] || null; updateAccess(); });
+  updateAccess();
+});
+readSettings().catch((e) => { $("who").textContent = "Could not read the plan settings: " + e.message; });
 </script>
 </body>
 </html>

@@ -81,7 +81,11 @@ Shield gives up roughly half the median return for a much better worst case. The
 
 ## Make it yours
 
-Weekly is the default, not a limit. Every setting is one owner call, with no redeploy:
+Weekly is the default, not a limit. Every setting is one owner call, with no redeploy.
+
+**From the dashboard:** open the [live dashboard](https://ballast-dca.github.io/ballast/), click **Connect wallet** in *Plan settings*, and change cadence, amount, monthly cap, slippage guard or mode, pause or resume, add USDC, top up REACT fee reserves, or withdraw. Each change is one wallet confirmation; the page switches between Base and Reactive Network itself and adds Reactive to the wallet on first use. Visitors see the same panel read-only.
+
+**From a terminal:**
 
 | Setting | Call | Example |
 |---|---|---|
@@ -217,13 +221,82 @@ From the cron tick to the brain knowing the trade landed: three Reactive blocks.
 - **The Shield stop (3x ATR) was chosen after seeing the data.** Treat it as a hypothesis the live run tests.
 - **Backtests use Coinbase BTC-USD; Ballast trades cbBTC on Base** against a Chainlink price. Small tracking differences are expected.
 
-## Next
+## Roadmap: Ballast for everyone
 
-- **Tunable dial**: dial strength, maximum multiplier and the overheat threshold as owner settings (today they are fixed at +5% per 1% below the average, 3x, and 130%).
-- **One-click plans**: a factory that deploys a brain and executor pair for any wallet, so a user sets cadence, amount and mode in a form instead of a terminal.
-- **Value averaging mode**: top up to a target value path. Best return per dollar in our tests, less total profit in bull runs.
-- **More assets**: ETH via a Chainlink ETH/USD feed, using the same brain logic.
-- **Gift plans**: a recipient address, so a weekly savings plan can run for someone else.
+Today each plan is its own pair of contracts: one brain on Reactive and one executor on Base, owned by one person. That proves the mechanism, but it asks every user for two networks, REACT for fees, and a seeding step, and every brain pays to compute the same market data. The next version keeps everything that works and changes the shape.
+
+### 1. One shared brain per asset, many personal vaults
+
+```mermaid
+flowchart LR
+    subgraph Base
+        F[VaultFactory] -->|VaultCreated| V1[Vault: Alice<br/>weekly, $25, Accumulate]
+        F -->|VaultCreated| V2[Vault: Bob<br/>daily, $5, Shield]
+        CL[Chainlink feeds<br/>BTC/USD, ETH/USD, ...]
+        H[Hub: batch executor]
+        H --> V1
+        H --> V2
+        H -->|one pooled swap per asset| U[Uniswap v3/v4]
+    end
+    subgraph Reactive Network
+        B[Asset brains<br/>one per asset:<br/>200-day average, trend, fear dial]
+    end
+    CL -->|AnswerUpdated| B
+    F -->|VaultCreated: new users found automatically| B
+    B -->|cron: execute due vaults| H
+    H -->|BatchDone with cursor| B
+    B -->|daily| M[MarketMood: public read]
+```
+
+- **One brain per asset** on Reactive computes the 200-day average, the trend and the fear dial once for everyone. Today's MarketMood already publishes this state publicly.
+- **A vault factory on Base.** A user creates a personal vault in **one transaction** on one network: asset mix, amount per period, cadence, monthly cap, mode and dial strength. The vault is non-custodial: only its owner can change settings or withdraw, at any time.
+- **Discovery through events, not registration.** The brains subscribe to the factory's `VaultCreated` events, so a new vault is picked up automatically. The user never touches Reactive and never holds REACT.
+- **Self-continuing batches.** On each cron tick the brain sends one callback to a Hub on Base, which executes as many due vaults as fit in the gas budget and emits `BatchDone(cursor)`. The brain reacts to that event and sends the next batch until every due vault is served. This is a pattern only an event-driven chain makes simple: no keeper, no off-chain queue.
+- **Pooled swaps.** All due buys for an asset in a batch become one Uniswap swap, split pro rata, under the same Chainlink price guard. That means less gas per user and less price impact than many small swaps.
+- **Shared costs.** Reactions are paid once per asset instead of once per user, funded by a small protocol fee on buys (for example 0.1%) or a fee reserve the vault tops up in USDC. At today's measured burn of about 3 REACT a day per brain, the cost per user falls as users join.
+
+### 2. Every asset with a price feed and a deep pool
+
+The brain does not care what it measures: it needs a Chainlink USD feed on Base and a liquid pool to trade.
+
+- **ETH first.** The backtest already covers it: the exact dial rule beat plain DCA in 65 of 71 rolling two-year windows for ETH.
+- **Then any asset that passes a listing check:** a Chainlink USD feed on Base, a pool deep enough that a typical batch moves the price by less than 0.1%, and a published backtest of the dial on that asset's history before it goes live. Each listed asset gets its own brain instance (same code, different feed and pool) and its own MarketMood entry.
+- **Portfolio vaults.** One vault can split each period across assets, for example 60% BTC and 40% ETH, with each slice sized by its own asset's fear dial. A storm in one market adds weight there without forcing buys in the others.
+- **Per-asset defaults, user-adjustable.** Volatile assets may need a different dial curve or overheat threshold; the backtests set the defaults and the vault owner can tune them within safe bounds.
+
+### 3. Fully customizable plans
+
+Everything a user can set per vault, on Base, at any time:
+
+- **Assets and allocation** (single asset or a mix)
+- **Amount per period** and **cadence** (from about every 2 hours to monthly)
+- **Monthly cap** on what the dial can spend
+- **Mode**: Accumulate (fear dial, always buying) or Shield (trend-gated, exits to USDC)
+- **Dial strength, maximum multiplier and overheat threshold** (today fixed at +5% per 1% below the average, 3x, and 130%)
+- **Slippage guard** and **pause**
+- **Recipient**: send the bought asset to another address, for gift plans or a cold wallet
+- **Value averaging mode**: top up to a target value path (best return per dollar in our tests, less total profit in bull runs)
+
+### 4. An app a non-developer can use
+
+- **Plan builder with a live backtest preview.** Move the sliders and see what this exact plan would have bought since 2019 against plain DCA: average cost, worst two-year window, cash needed in the worst month. The evidence becomes personal.
+- **One-tap setup** with Coinbase Smart Wallet or passkeys, so no seed phrase is needed, optionally gas-free through a paymaster.
+- **A personal dashboard** that explains every buy ("bought 1.95x because BTC closed 19% below its 200-day average"), with cost basis against plain DCA, and edit, pause and withdraw in place. The control panel on today's dashboard is the first piece of this.
+- **Notifications** on each buy, a low balance, or the dial reaching 3x, by Telegram or email, driven by on-chain events.
+
+### 5. Safety before scale
+
+- An **independent audit** before the factory holds anyone else's money.
+- Per-vault isolation: vault accounting never mixes funds; the Hub only moves a vault's own balance.
+- The guards that exist today, kept: Chainlink price checks, stale-oracle skips, idempotent rounds, monthly caps, skip-not-revert.
+- Caps on total value per asset during a staged launch.
+
+### Milestones
+
+1. **Tunable dial and ETH**: dial parameters as owner settings, an ETH brain and executor, ETH on the dashboard.
+2. **Vault factory and Hub**: one-transaction vaults on Base, event-based discovery, self-continuing batches, pooled swaps; fork-tested and fuzzed like today's contracts.
+3. **The app**: plan builder with backtest preview, Smart Wallet onboarding, personal dashboards, notifications.
+4. **Audit and staged launch**: capped deposits per asset, then open listing for assets that pass the check.
 
 ---
 
