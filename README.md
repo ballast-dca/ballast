@@ -250,10 +250,10 @@ flowchart LR
 
 - **One brain per asset** on Reactive computes the 200-day average, the trend and the fear dial once for everyone. Today's MarketMood already publishes this state publicly.
 - **A vault factory on Base.** A user creates a personal vault in **one transaction** on one network: asset mix, amount per period, cadence, monthly cap, mode and dial strength. The vault is non-custodial: only its owner can change settings or withdraw, at any time.
-- **Discovery through events, not registration.** The brains subscribe to the factory's `VaultCreated` events, so a new vault is picked up automatically. The user never touches Reactive and never holds REACT.
+- **Discovery through events, not registration.** The brains subscribe to the factory's `VaultCreated` events, so a new vault is picked up automatically. The user works on one network and never has to buy or bridge REACT: the protocol handles that for everyone (below).
 - **Self-continuing batches.** On each cron tick the brain sends one callback to a Hub on Base, which executes as many due vaults as fit in the gas budget and emits `BatchDone(cursor)`. The brain reacts to that event and sends the next batch until every due vault is served. This is a pattern only an event-driven chain makes simple: no keeper, no off-chain queue.
 - **Pooled swaps.** All due buys for an asset in a batch become one Uniswap swap, split pro rata, under the same Chainlink price guard. That means less gas per user and less price impact than many small swaps.
-- **Shared costs.** Reactions are paid once per asset instead of once per user, funded by a small protocol fee on buys (for example 0.1%) or a fee reserve the vault tops up in USDC. At today's measured burn of about 3 REACT a day per brain, the cost per user falls as users join.
+- **Usage becomes REACT demand.** Every reaction on Reactive is paid in REACT, and Ballast's brains react to every price update, every cron tick and every batch. A small protocol fee on buys (for example 0.1%) is swapped into REACT on the Base REACT/USDC pool and bridged to the brains' reserves. So the protocol buys REACT on the open market in proportion to its use: more vaults, more assets and more batches mean more reactions and more REACT bought. Today one brain spends about 3 REACT a day; a brain per listed asset, each serving every vault for that asset, scales that with adoption while the cost per user falls.
 
 ### 2. Every asset with a price feed and a deep pool
 
