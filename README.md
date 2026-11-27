@@ -197,7 +197,7 @@ All three are verified on Sourcify (exact match).
 | # | Step | Chain | Transaction |
 |---|---|---|---|
 | 1 | Cron10000 tick (origin event) | Reactive, block 10,560,000 | [`0x3e5e9178...49fc`](https://reactscan.net/tx/0x3e5e91786cf782257ca39cc30a639f54321214299d1b7db1586e132b2e1549fc) |
-| 2 | BallastBrain reacts: `Decision(WEEK_AND_BUY, 195, -1902)` and requests the callback | Reactive, block 10,560,001 | [`0xf960c245...c68f`](https://reactscan.net/tx/0xf960c24506c1f28a50a9e458ee6c466ff7b07eab0b980371e50236cdbce2c68f) |
+| 2 | BallastBrain reacts: `Decision(WEEK_AND_BUY, 195, -1906)` and requests the callback | Reactive, block 10,560,001 | [`0xf960c245...c68f`](https://reactscan.net/tx/0xf960c24506c1f28a50a9e458ee6c466ff7b07eab0b980371e50236cdbce2c68f) |
 | 3 | Callback on Base: `Explained`, `BudgetReleased`, Uniswap swap, `Bought` (9.75 USDC to 0.00015897 cbBTC) | Base, block 62,779,424 | [`0x69ae0e1b...2d23`](https://basescan.org/tx/0x69ae0e1b2cd24a5023499be94f7d7b0da6c98667cd7c80fafe171a7c92662d23) |
 | 4 | The loop closes: BallastBrain reacts to the `Bought` event on Base and records the position | Reactive, block 10,560,003 | [`0xbb933c50...ff14`](https://reactscan.net/tx/0xbb933c509d3e976ce149a0a3735adaad474c703f417f40961b51b6c3d97cff14) |
 
