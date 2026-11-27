@@ -4,7 +4,7 @@
 
 Ships take on ballast to stay steady in rough seas. Ballast does the same for a BTC savings plan: the worse the market, the more it buys.
 
-**Demo video (2:22):** https://youtu.be/gx9GPTDA1ts
+**Demo video (2:54):** https://youtu.be/kzohdQIc3R4
 
 **Buildathon entry:** https://dorahacks.io/build/52089
 
