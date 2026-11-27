@@ -202,6 +202,8 @@ All three are verified on Sourcify (exact match).
 
 ### The first live loop (weekly buy at 1.95x, BTC 19% below its 200-day average)
 
+The whole loop, from the cron tick on Reactive through the Uniswap swap on Base and back to the position recorded on Reactive, took **about 3 seconds across two chains** (block timestamps: Reactive 02:24:17, 02:24:18 and 02:24:20 UTC; Base 02:24:20.4 UTC, Nov 27, 2026; Reactive reports whole seconds).
+
 | # | Step | Chain | Transaction |
 |---|---|---|---|
 | 1 | Cron10000 tick (origin event) | Reactive, block 10,560,000 | [`0x3e5e9178...49fc`](https://reactscan.net/tx/0x3e5e91786cf782257ca39cc30a639f54321214299d1b7db1586e132b2e1549fc) |
