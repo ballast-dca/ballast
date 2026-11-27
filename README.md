@@ -75,6 +75,27 @@ We also tested a drawdown-from-high dial, an RSI dial and value averaging. The d
 
 Shield gives up roughly half the median return for a much better worst case. The owner switches modes with one call.
 
+## Make it yours
+
+Weekly is the default, not a limit. Every setting is one owner call, with no redeploy:
+
+| Setting | Call | Example |
+|---|---|---|
+| Cadence | `BallastBrain.setInterval(seconds)` | `86400` for daily, `1209600` for every two weeks |
+| Amount per period | `BallastExecutor.setWeekly(usdc)` | `25000000` for $25 per period (6 decimals) |
+| Spending ceiling | `BallastExecutor.setMonthlyCap(usdc)` | `300000000` caps dial-boosted buys at $300 per 30 days; `0` for no cap |
+| Slippage guard | `BallastExecutor.setSlippageBps(bps)` | `50` for 0.5% against Chainlink |
+| Strategy | `BallastBrain.setMode(1 or 2)` | `1` ACCUMULATE (fear dial), `2` SHIELD (trend-gated with exits) |
+| Pause | `BallastBrain.pause()` / `resume()`, `BallastExecutor.setPaused(bool)` | stop paying for reactions, or stop trading |
+| Exit | `BallastExecutor.withdraw(token, to, amount)` | take USDC or cbBTC out at any time |
+
+```
+cast send $BRAIN "setInterval(uint256)" 86400 --rpc-url https://mainnet-rpc.rnk.dev/ --account <you>
+cast send $EXECUTOR "setWeekly(uint256)" 25000000 --rpc-url https://mainnet.base.org --account <you>
+```
+
+The cadence can be anything from about 2 hours up: the brain checks it on every Reactive `Cron10000` tick, which arrives roughly every 2.2 hours on mainnet (measured). Fewer, larger buys and more, smaller buys both work; the dial sizes each one the same way. The backtests above use weekly buys and the default dial, so other settings are untested variations of the rule.
+
 ---
 
 ## How it works
@@ -194,6 +215,8 @@ From the cron tick to the brain knowing the trade landed: three Reactive blocks.
 
 ## Next
 
+- **Tunable dial**: dial strength, maximum multiplier and the overheat threshold as owner settings (today they are fixed at +5% per 1% below the average, 3x, and 130%).
+- **One-click plans**: a factory that deploys a brain and executor pair for any wallet, so a user sets cadence, amount and mode in a form instead of a terminal.
 - **Value averaging mode**: top up to a target value path. Best return per dollar in our tests, less total profit in bull runs.
 - **More assets**: ETH via a Chainlink ETH/USD feed, using the same brain logic.
 - **Gift plans**: a recipient address, so a weekly savings plan can run for someone else.
