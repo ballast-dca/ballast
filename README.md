@@ -156,9 +156,9 @@ The fork tests use `https://mainnet.base.org` by default; set `BASE_RPC` to use 
 
 | Contract | Chain | Address |
 |---|---|---|
-| SteadyBrain | Reactive mainnet (1597) | _to be filled after deployment_ |
-| SteadyExecutor | Base (8453) | _to be filled after deployment_ |
-| MarketMood | Base (8453) | _to be filled after deployment_ |
+| SteadyBrain | Reactive mainnet (1597) | [`0x6A72B29fb883c68dAaf4b22E576F2664b47401a3`](https://reactscan.net/address/0x6A72B29fb883c68dAaf4b22E576F2664b47401a3) |
+| SteadyExecutor | Base (8453) | [`0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205`](https://basescan.org/address/0x1F013aED0ad6069aE1340Df39c95EC1d34B7A205) |
+| MarketMood | Base (8453) | [`0xB1C3581Ecf3AB3EBac874967992F32506083f3D8`](https://basescan.org/address/0xB1C3581Ecf3AB3EBac874967992F32506083f3D8) |
 
 Full-loop transactions (origin event, reactive transaction, callback): _to be filled after deployment_.
 
