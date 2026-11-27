@@ -6,6 +6,8 @@ Ships take on ballast to stay steady in rough seas. Ballast does the same for a 
 
 **Demo video (2:22):** https://youtu.be/gx9GPTDA1ts
 
+**Buildathon entry:** https://dorahacks.io/build/52089
+
 **Live dashboard:** https://ballast-dca.github.io/ballast/
 
 Ballast is a weekly dollar-cost-averaging plan for BTC that runs entirely on-chain, with no server, no bot and no keys online. A reactive contract on [Reactive Network](https://reactive.network) watches the Chainlink BTC/USD feed on Base, computes the 200-day average and trend indicators on-chain, and tells an executor on Base how much to buy each week: more when BTC is cheap relative to its long-term average, less when it is overheated.
